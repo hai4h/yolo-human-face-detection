@@ -80,7 +80,7 @@ def main():
     # Thông tin người dùng và ảnh (thay đổi thông tin này)
     user_id = "2"  # ID người dùng
     name = "Hoàng Đình Hải Anh"  # Tên người dùng
-    image_path = "test_imgs/HoangDinhHaiAnh_1.jpg"  # Đường dẫn đến ảnh khuôn mặt
+    image_path = "test_imgs/HoangDinhHaiAnh_2.jpg"  # Đường dẫn đến ảnh khuôn mặt
 
     # Đọc ảnh
     face_img = cv2.imread(image_path)
@@ -98,20 +98,84 @@ def main():
     query_embedding = face_embedding  # Sử dụng embedding đã trích xuất
     top_k = 1  # Số lượng kết quả tương tự mong muốn
     start_time = time.time()
-    results = face_collection.find(
+    # Chuẩn bị vector truy vấn
+    queryVec = query_embedding
+
+    # Aggregation pipeline
+    pipeline = [
+        # 1) Tính dot product giữa face_embedding và queryVec
         {
-            "face_embedding": {
-                "$near": {
-                    "$geometry": {
-                        "type": "Point",
-                        "coordinates": query_embedding,
-                    },
-                    "$maxDistance": 10.0,  # Ngưỡng khoảng cách, cần điều chỉnh
-                },
-            },
+            "$addFields": {
+                "dot": {
+                    "$sum": {
+                        "$map": {
+                            "input": { "$range": [0, { "$size": "$face_embedding" }] },
+                            "as": "i",
+                            "in": {
+                                "$multiply": [
+                                    { "$arrayElemAt": ["$face_embedding", "$$i"] },
+                                    { "$arrayElemAt": [queryVec, "$$i"] }
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
         },
-        {"_id": 0, "name": 1},  # Chỉ lấy trường "name"
-    ).limit(top_k)
+        # 2) Tính magnitude (độ lớn) của face_embedding
+        {
+        "$addFields": {
+            # Tính magDoc
+            "magDoc": {
+            "$sqrt": {
+                "$sum": {
+                "$map": {
+                    "input": "$face_embedding",
+                    "as": "x",
+                    "in": { "$multiply": ["$$x", "$$x"] }
+                }
+                }
+            }
+            },
+            # Tính magQuery
+            "magQuery": {
+            "$sqrt": {
+                "$sum": {
+                "$map": {
+                    "input": queryVec,
+                    "as": "y",
+                    "in": { "$multiply": ["$$y", "$$y"] }
+                }
+                }
+            }
+            }
+        }
+        },
+        # 3) Tính cosine similarity = dot / (magDoc * magQuery)
+        {
+            "$addFields": {
+                "cosineSim": {
+                    "$cond": [
+                        {"$eq": ["$magDoc", 0]},
+                        0,
+                        {"$divide": ["$dot", {"$multiply": ["$magDoc", "$magQuery"]}]}
+                    ]
+                }
+            }
+        },
+        # 4) Sắp xếp và giới hạn kết quả
+        {"$sort": {"cosineSim": -1}},
+        {"$limit": top_k},
+        # 5) Chỉ select các trường cần thiết
+        {
+            "$project": {
+                "name": 1,
+                "cosineSim": 1
+            }
+        }
+    ]
+
+    results = list(face_collection.aggregate(pipeline))
     end_time = time.time()
     query_time = (end_time - start_time) * 1000  # Thời gian truy vấn tính bằng mili giây
 

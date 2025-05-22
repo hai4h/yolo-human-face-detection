@@ -62,7 +62,7 @@ const config = {
     
     // Nhãn kết quả nhận diện / Detection label settings
     desktopLabelFontSize: 10,     // Kích thước chữ trên desktop (px)
-    mobileLabelFontSize: 12,      // Kích thước chữ trên thiết bị di động (px)
+    mobileLabelFontSize: 20,      // Kích thước chữ trên thiết bị di động (px)
     labelPadding: 4,              // Padding cho nhãn (px)
     labelMargin: 6,               // Khoảng cách từ nhãn đến khung (px)
     borderWidth: 2                // Độ dày viền khung (px)

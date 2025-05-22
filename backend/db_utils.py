@@ -40,65 +40,34 @@ def find_similar_faces(query_embedding, top_k=1):
 
         # Xây dựng aggregation pipeline để tính cosine similarity
         pipeline = [
-            {  # 1) Dot product giữa face_embedding và query_vec
-                "$addFields": {
-                    "dot": {
-                        "$sum": {
+        {
+            "$addFields": {
+                "cosineSim": {
+                    "$reduce": {
+                        "input": {
                             "$map": {
-                                "input": { "$range": [0, { "$size": "$face_embedding" }]},
+                                "input": {"$range": [0, 256]},
                                 "as": "i",
                                 "in": {
                                     "$multiply": [
-                                        { "$arrayElemAt": ["$face_embedding", "$$i"] },
-                                        { "$arrayElemAt": [query_vec, "$$i"] }
+                                        {"$arrayElemAt": ["$face_embedding", "$$i"]},
+                                        {"$arrayElemAt": [query_vec, "$$i"]}
                                     ]
                                 }
                             }
-                        }
+                        },
+                        "initialValue": 0,
+                        "in": {"$add": ["$$value", "$$this"]}
                     }
                 }
-            },
-            {  # 2) Tính magnitude của face_embedding và query_vec riêng biệt
-                "$addFields": {
-                    "magDoc": {
-                        "$sqrt": {
-                            "$sum": {
-                                "$map": {
-                                    "input": "$face_embedding",
-                                    "as": "x",
-                                    "in": { "$multiply": ["$$x", "$$x"] }
-                                }
-                            }
-                        }
-                    },
-                    "magQuery": {
-                        "$sqrt": {
-                            "$sum": {
-                                "$map": {
-                                    "input": query_vec,
-                                    "as": "y",
-                                    "in": { "$multiply": ["$$y", "$$y"] }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            {  # 3) Cosine similarity = dot / (magDoc * magQuery)
-                "$addFields": {
-                    "cosineSim": {
-                        "$cond": [
-                            { "$eq": ["$magDoc", 0] },
-                            0,
-                            { "$divide": ["$dot", { "$multiply": ["$magDoc", "$magQuery"] }] }
-                        ]
-                    }
-                }
-            },
-            { "$sort": { "cosineSim": -1 } },  # 4) Sắp xếp giảm dần
-            { "$limit": top_k },                # 5) Giới hạn số kết quả
-            { "$project": { "name": 1} }
-        ]
+            }
+        },
+        {"$match": {"cosineSim": {"$gt": 0.97}}},  # Điều chỉnh ngưỡng
+        {"$sort": {"cosineSim": -1}},
+        {"$limit": top_k},
+        {"$project": {"name": 1, "cosineSim": 1, "_id": 1}}
+    ]
+
 
         results = list(face_collection.aggregate(pipeline))
         return results

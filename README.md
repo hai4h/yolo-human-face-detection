@@ -16,7 +16,7 @@ Hệ thống Nhận diện Người & Khuôn Mặt là ứng dụng web thời g
 
 - **Backend**: FastAPI (Python), YOLO, TensorFlow
 - **Frontend**: HTML, CSS, JavaScript (vanilla)
-- **Mô hình AI**: YOLOv11n, mô hình nhận diện khuôn mặt tùy chỉnh, mô hình cảm xúc TFLite
+- **Mô hình AI**: YOLOv8n với cấu trúc các lớp được cắt giảm, tùy chỉnh tương ứng với các tác vụ nhận diện người hay khuôn mặt; mô hình cảm xúc, hành vi TFLite
 
 ## 2. Kiến trúc hệ thống
 

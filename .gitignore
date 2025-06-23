@@ -180,6 +180,7 @@ dataset/fer-2013/test/*
 dataset/har/*
 dataset/vggface2/*
 test_imgs/*
+models/saved_face_embedding/*
 
 latency_distribution_h5.png
 latency_distribution_keras.png
@@ -192,3 +193,4 @@ saved_model_format
 emotion_model_checkpoint.h5
 run_server.py
 structure.txt
+models/saved_face_embedding

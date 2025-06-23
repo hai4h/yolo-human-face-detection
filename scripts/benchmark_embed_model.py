@@ -13,24 +13,32 @@ putenv("HSA_OVERRIDE_GFX_VERSION", "10.3.0")
 putenv("ROCM_PATH", "/opt/rocm-6.3.0")
 
 # 2) Hàm build embedding model (dùng nếu load weights .h5 hoặc SavedModel)
-def build_embedding_model(input_shape=(160,160,3), embedding_dim=128):
+def build_embedding_model(input_shape=(160,160,3), embedding_dim=256):
     inputs = layers.Input(shape=input_shape)
-    x = layers.Conv2D(16,3,activation='relu',padding='same')(inputs)
+
+    x = layers.Conv2D(32, 3, activation='relu', padding='same')(inputs)
     x = layers.BatchNormalization()(x)
     x = layers.MaxPooling2D()(x)
-    x = layers.Conv2D(32,3,activation='relu',padding='same')(x)
+
+    x = layers.Conv2D(64, 3, activation='relu', padding='same')(inputs)
     x = layers.BatchNormalization()(x)
     x = layers.MaxPooling2D()(x)
-    x = layers.Conv2D(64,3,activation='relu',padding='same')(x)
+
+    x = layers.Conv2D(128, 3, activation='relu', padding='same')(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.MaxPooling2D()(x)
+
+    x = layers.Conv2D(128, 3, activation='relu', padding='same')(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.MaxPooling2D()(x)
+
+    x = layers.Conv2D(256, 3, activation='relu', padding='same')(x)
     x = layers.GlobalAveragePooling2D()(x)
-    x = layers.Dropout(0.5)(x)
-    x = layers.Dense(embedding_dim, activation=None, name='embeddings')(x)
+    x = layers.Dropout(0.2)(x)
 
-    # L2‑normalize với output_shape để tránh lỗi khi load lại
-    def l2_norm(t): return tf.math.l2_normalize(t, axis=1)
-    def l2_out_shape(shape): return shape
+    embeddings = layers.Dense(embedding_dim, activation=None, name='embeddings')(x)
+    embeddings = layers.Lambda(lambda t: tf.math.l2_normalize(t, axis=1))(embeddings)
 
-    embeddings = layers.Lambda(l2_norm, output_shape=l2_out_shape, name='l2_norm')(x)
     return Model(inputs, embeddings, name='embedding_model')
 
 # 3) Hàm tiền xử lý ảnh
@@ -42,9 +50,9 @@ def preprocess_image(img_path, target_size=(160,160)):
 
 # 4) Parser CLI
 parser = argparse.ArgumentParser(description="Benchmark face-embedding inference time")
-parser.add_argument("--model", default='models/face_embedding_model_64.h5',
+parser.add_argument("--model", default='models/face_embedding_model_256.h5',
                     help="Path to model (.h5, SavedModel dir, or .tflite)")
-parser.add_argument("--img_dir", default='dataset/vggface2/val/n000001',
+parser.add_argument("--img_dir", default='test_imgs/HoangDinhHaiAnh.mp4',
                     help="Directory of images to test")
 args = parser.parse_args()
 
@@ -60,7 +68,7 @@ else:
     print("🔄 Loading Keras model...")
     # Nếu là HDF5
     if args.model.lower().endswith(".h5") or args.model.lower().endswith(".keras"):
-        emb_model = build_embedding_model(embedding_dim=64)
+        emb_model = build_embedding_model(embedding_dim=256)
         emb_model.load_weights(args.model)
     else:
         # SavedModel directory

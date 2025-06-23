@@ -11,7 +11,7 @@ Cách sử dụng / Usage:
 
 from os import putenv
 putenv("HSA_OVERRIDE_GFX_VERSION", "10.3.0")
-putenv("ROCM_PATH", "/opt/rocm-6.3.3")
+putenv("ROCM_PATH", "/opt/rocm-6.3.0")
 
 import os
 import argparse
@@ -246,7 +246,7 @@ def main():
     """Hàm chính / Main function"""
     parser = argparse.ArgumentParser(description='Train facial emotion recognition model')
     parser.add_argument('--data_path', type=str, required=True, help='Path to FER2013 dataset with train and test folders')
-    parser.add_argument('--epochs', type=int, default=50, help='Number of epochs')
+    parser.add_argument('--epochs', type=int, default=10, help='Number of epochs')
     parser.add_argument('--batch_size', type=int, default=64, help='Batch size')
     parser.add_argument('--output', type=str, default='emotion_model.h5', help='Output model path')
     parser.add_argument('--validation_split', type=float, default=0.2, help='Validation split ratio from training data')

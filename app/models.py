@@ -24,7 +24,7 @@ def load_models():
 
     # Tải mô hình TensorFlow Lite cho trích xuất embedding khuôn mặt
     # Load TensorFlow Lite model for face embedding extraction
-    face_embedding_interpreter = tf.lite.Interpreter(model_path='models/face_embedding_model_64_fp16.tflite') # Đổi đường dẫn nếu cần
+    face_embedding_interpreter = tf.lite.Interpreter(model_path='models/face_embedding_model_256.tflite') # Đổi đường dẫn nếu cần
     face_embedding_interpreter.allocate_tensors()
 
     return person_model, face_model, emotion_interpreter, action_interpreter, face_embedding_interpreter

@@ -74,9 +74,9 @@ def main():
     embedding_model = load_embedding_model()
 
     # Thông tin người dùng và ảnh (thay đổi thông tin này)
-    user_id = "2"  # ID người dùng
-    name = "Hoàng Đình Hải Anh"  # Tên người dùng
-    image_path = "test_imgs/HoangDinhHaiAnh_1.jpg"  # Đường dẫn đến ảnh khuôn mặt
+    user_id = "1"  # ID người dùng
+    name = "Đỗ Hồng Quân"  # Tên người dùng
+    image_path = "test_imgs/do-hong-quan-3.jpg"  # Đường dẫn đến ảnh khuôn mặt
 
     # Đọc ảnh
     face_img = cv2.imread(image_path)

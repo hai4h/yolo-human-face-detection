@@ -31,25 +31,46 @@ def store_face_data(user_id, name, face_embedding):
         print(f"Error storing face data: {e}")
         return False
 
+
 def find_similar_faces(query_embedding, top_k=1):
-    """Tìm kiếm các khuôn mặt tương đồng trong MongoDB."""
+    """Tìm kiếm các khuôn mặt tương đồng bằng cosine similarity trong MongoDB."""
     try:
-        query_vector = np.array(query_embedding, dtype=np.float32).tolist()
-        results = face_collection.find(
-            {
-                "face_embedding": {
-                    "$near": {
-                        "$geometry": {
-                            "type": "Point",
-                            "coordinates": query_vector,
+        # Chuyển vector truy vấn về list thuần để đưa vào pipeline
+        query_vec = np.array(query_embedding, dtype=np.float32).tolist()
+
+        # Xây dựng aggregation pipeline để tính cosine similarity
+        pipeline = [
+        {
+            "$addFields": {
+                "cosineSim": {
+                    "$reduce": {
+                        "input": {
+                            "$map": {
+                                "input": {"$range": [0, 256]},
+                                "as": "i",
+                                "in": {
+                                    "$multiply": [
+                                        {"$arrayElemAt": ["$face_embedding", "$$i"]},
+                                        {"$arrayElemAt": [query_vec, "$$i"]}
+                                    ]
+                                }
+                            }
                         },
-                        "$maxDistance": 10.0,  # Ngưỡng khoảng cách, cần điều chỉnh
+                        "initialValue": 0,
+                        "in": {"$add": ["$$value", "$$this"]}
                     }
                 }
-            },
-            {"_id": 0, "name": 1}  # Projection (trường cần lấy)
-        ).limit(top_k)
-        return list(results)
+            }
+        },
+        {"$match": {"cosineSim": {"$gt": 0.96}}},  # Điều chỉnh ngưỡng
+        {"$sort": {"cosineSim": -1}},
+        {"$limit": top_k},
+        {"$project": {"name": 1, "cosineSim": 1, "_id": 1}}
+    ]
+
+
+        results = list(face_collection.aggregate(pipeline))
+        return results
     except Exception as e:
         print(f"Error finding similar faces: {e}")
         raise HTTPException(status_code=500, detail="Failed to find similar faces")

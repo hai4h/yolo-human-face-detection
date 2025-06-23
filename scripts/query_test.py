@@ -10,22 +10,33 @@ import tensorflow as tf
 from tensorflow.keras import layers, Model  # Import Keras modules
 import time
 
-def load_embedding_model(input_shape=(160, 160, 3), embedding_dim=64):
+def load_embedding_model(input_shape=(160, 160, 3), embedding_dim=256):
     """Load mô hình embedding khuôn mặt."""
     inputs = layers.Input(shape=input_shape)
-    x = layers.Conv2D(16, 3, activation='relu', padding='same')(inputs)
+    x = layers.Conv2D(32, 3, activation='relu', padding='same')(inputs)
     x = layers.BatchNormalization()(x)
     x = layers.MaxPooling2D()(x)
-    x = layers.Conv2D(32, 3, activation='relu', padding='same')(x)
+
+    x = layers.Conv2D(64, 3, activation='relu', padding='same')(inputs)
     x = layers.BatchNormalization()(x)
     x = layers.MaxPooling2D()(x)
-    x = layers.Conv2D(64, 3, activation='relu', padding='same')(x)
+
+    x = layers.Conv2D(128, 3, activation='relu', padding='same')(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.MaxPooling2D()(x)
+
+    x = layers.Conv2D(128, 3, activation='relu', padding='same')(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.MaxPooling2D()(x)
+
+    x = layers.Conv2D(256, 3, activation='relu', padding='same')(x)
     x = layers.GlobalAveragePooling2D()(x)
-    x = layers.Dropout(0.5)(x)
+    x = layers.Dropout(0.2)(x)
+
     embeddings = layers.Dense(embedding_dim, activation=None, name='embeddings')(x)
     embeddings = layers.Lambda(lambda t: tf.math.l2_normalize(t, axis=1))(embeddings)
     model = Model(inputs, embeddings, name='embedding_model')
-    model.load_weights("models/face_embedding_model_64.h5")  # Đảm bảo đường dẫn chính xác
+    model.load_weights("models/face_embedding_model_256.h5")
     return model
 
 
@@ -76,11 +87,7 @@ def main():
 
     # Load mô hình
     embedding_model = load_embedding_model()
-
-    # Thông tin người dùng và ảnh (thay đổi thông tin này)
-    user_id = "2"  # ID người dùng
-    name = "Hoàng Đình Hải Anh"  # Tên người dùng
-    image_path = "test_imgs/HoangDinhHaiAnh_1.jpg"  # Đường dẫn đến ảnh khuôn mặt
+    image_path = "test_imgs/old/HoangDinhHaiAnh_4.jpg"  # Đường dẫn đến ảnh khuôn mặt
 
     # Đọc ảnh
     face_img = cv2.imread(image_path)
@@ -98,20 +105,39 @@ def main():
     query_embedding = face_embedding  # Sử dụng embedding đã trích xuất
     top_k = 1  # Số lượng kết quả tương tự mong muốn
     start_time = time.time()
-    results = face_collection.find(
+    # Chuẩn bị vector truy vấn
+    queryVec = query_embedding
+
+    pipeline = [
         {
-            "face_embedding": {
-                "$near": {
-                    "$geometry": {
-                        "type": "Point",
-                        "coordinates": query_embedding,
-                    },
-                    "$maxDistance": 10.0,  # Ngưỡng khoảng cách, cần điều chỉnh
-                },
-            },
+            "$addFields": {
+                "cosineSim": {
+                    "$reduce": {
+                        "input": {
+                            "$map": {
+                                "input": {"$range": [0, 256]},
+                                "as": "i",
+                                "in": {
+                                    "$multiply": [
+                                        {"$arrayElemAt": ["$face_embedding", "$$i"]},
+                                        {"$arrayElemAt": [queryVec, "$$i"]}
+                                    ]
+                                }
+                            }
+                        },
+                        "initialValue": 0,
+                        "in": {"$add": ["$$value", "$$this"]}
+                    }
+                }
+            }
         },
-        {"_id": 0, "name": 1},  # Chỉ lấy trường "name"
-    ).limit(top_k)
+        {"$match": {"cosineSim": {"$gt": 0.95}}},  # Điều chỉnh ngưỡng
+        {"$sort": {"cosineSim": -1}},
+        {"$limit": top_k},
+        {"$project": {"name": 1, "cosineSim": 1, "_id": 1}}
+    ]
+
+    results = list(face_collection.aggregate(pipeline))
     end_time = time.time()
     query_time = (end_time - start_time) * 1000  # Thời gian truy vấn tính bằng mili giây
 

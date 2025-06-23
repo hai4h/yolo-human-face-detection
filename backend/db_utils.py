@@ -62,7 +62,7 @@ def find_similar_faces(query_embedding, top_k=1):
                 }
             }
         },
-        {"$match": {"cosineSim": {"$gt": 0.97}}},  # Điều chỉnh ngưỡng
+        {"$match": {"cosineSim": {"$gt": 0.96}}},  # Điều chỉnh ngưỡng
         {"$sort": {"cosineSim": -1}},
         {"$limit": top_k},
         {"$project": {"name": 1, "cosineSim": 1, "_id": 1}}

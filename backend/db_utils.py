@@ -1,76 +1,88 @@
+import faiss
+import numpy as np
 from pymongo import MongoClient
 from datetime import datetime, timezone
-from fastapi import HTTPException
-import numpy as np
 
-# Kết nối MongoDB
-client = MongoClient("mongodb://localhost:27017/")  # Thay đổi nếu cần
+# Kết nối MongoDB (vẫn giữ timeout ngắn phòng khi DB sập)
+client = MongoClient("mongodb://localhost:27017/", serverSelectionTimeoutMS=50)
 db = client["face_recognition_db"]
 face_collection = db["faces"]
 
-def store_face_data(user_id, name, face_embedding):
-    """Lưu trữ dữ liệu khuôn mặt vào MongoDB."""
+# FAISS variables
+face_index = None
+face_names_map = {}
+
+def init_face_recognition():
+    """Tải tất cả embedding từ MongoDB vào FAISS RAM lúc khởi động server."""
+    global face_index, face_names_map
     try:
-        if not isinstance(user_id, str):
-            raise ValueError(f"user_id must be a string, got {type(user_id)}")
-        if not isinstance(name, str):
-            raise ValueError(f"name must be a string, got {type(name)}")
-        if not isinstance(face_embedding, list) or not all(isinstance(x, (int, float)) for x in face_embedding):
-            raise ValueError(f"face_embedding must be a list of numbers, got {type(face_embedding)}")
+        # Kiểm tra MongoDB có sống không
+        client.admin.command('ping')
+
+        # Lấy tất cả khuôn mặt từ DB
+        faces = list(face_collection.find({}, {"name": 1, "face_embedding": 1}))
+
+        if not faces:
+            print("Cảnh báo: Không có khuôn mặt nào trong cơ sở dữ liệu.")
+            return
+
+        # Lấy kích thước vector
+        dim = len(faces[0]["face_embedding"])
+
+        # IndexFlatIP dùng để tính Cosine Similarity cho vector đã L2 Normalize
+        face_index = faiss.IndexFlatIP(dim)
+
+        embeddings_matrix = []
+        for i, face in enumerate(faces):
+            embeddings_matrix.append(face["face_embedding"])
+            face_names_map[i] = face["name"] # Lưu map ID -> Tên
+
+        # Nạp vào FAISS
+        embeddings_matrix = np.array(embeddings_matrix, dtype=np.float32)
+        face_index.add(embeddings_matrix)
+        print(f"Đã nạp thành công {len(faces)} khuôn mặt vào FAISS index (RAM).")
+
+    except Exception as e:
+        print(f"❌ Lỗi khởi tạo FAISS (MongoDB có thể đang tắt): {e}")
+        face_index = None
+        face_names_map = {}
+
+def find_similar_faces(query_embedding, top_k=1, threshold=0.9):
+    """Tìm kiếm bằng FAISS trong RAM (< 1ms) thay vì gọi MongoDB."""
+    global face_index, face_names_map
+
+    # Nếu FAISS trống (DB sập hoặc chưa có data), bỏ qua luôn
+    if face_index is None or face_index.ntotal == 0:
+        return []
+
+    try:
+        # Chuyển query về ma trận 2D: shape (1, 256)
+        query_vec = np.array([query_embedding], dtype=np.float32)
+
+        # Search trong FAISS
+        distances, indices = face_index.search(query_vec, top_k)
+
+        results = []
+        for j, i in enumerate(indices[0]):
+            if i != -1 and distances[0][j] > threshold:
+                results.append({"name": face_names_map[i], "cosineSim": float(distances[0][j])})
+
+        return results
+    except Exception as e:
+        print(f"FAISS search error: {e}")
+        return []
+
+def store_face_data(user_id, name, face_embedding):
+    try:
         face_data = {
-            "user_id": user_id,
-            "name": name,
-            "face_embedding": face_embedding,
-            "created_at": datetime.now(timezone.utc),
-            "updated_at": datetime.now(timezone.utc),
+            "user_id": user_id, "name": name, "face_embedding": face_embedding,
+            "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc),
         }
         result = face_collection.insert_one(face_data)
         print(f"Stored face data for user_id: {user_id}, inserted_id: {result.inserted_id}")
+
+        init_face_recognition()
         return True
     except Exception as e:
         print(f"Error storing face data: {e}")
         return False
-
-
-def find_similar_faces(query_embedding, top_k=1):
-    """Tìm kiếm các khuôn mặt tương đồng bằng cosine similarity trong MongoDB."""
-    try:
-        # Chuyển vector truy vấn về list thuần để đưa vào pipeline
-        query_vec = np.array(query_embedding, dtype=np.float32).tolist()
-
-        # Xây dựng aggregation pipeline để tính cosine similarity
-        pipeline = [
-        {
-            "$addFields": {
-                "cosineSim": {
-                    "$reduce": {
-                        "input": {
-                            "$map": {
-                                "input": {"$range": [0, 256]},
-                                "as": "i",
-                                "in": {
-                                    "$multiply": [
-                                        {"$arrayElemAt": ["$face_embedding", "$$i"]},
-                                        {"$arrayElemAt": [query_vec, "$$i"]}
-                                    ]
-                                }
-                            }
-                        },
-                        "initialValue": 0,
-                        "in": {"$add": ["$$value", "$$this"]}
-                    }
-                }
-            }
-        },
-        {"$match": {"cosineSim": {"$gt": 0.96}}},  # Điều chỉnh ngưỡng
-        {"$sort": {"cosineSim": -1}},
-        {"$limit": top_k},
-        {"$project": {"name": 1, "cosineSim": 1, "_id": 1}}
-    ]
-
-
-        results = list(face_collection.aggregate(pipeline))
-        return results
-    except Exception as e:
-        print(f"Error finding similar faces: {e}")
-        raise HTTPException(status_code=500, detail="Failed to find similar faces")

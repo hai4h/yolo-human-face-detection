@@ -10,6 +10,11 @@ import { updateStats, setupFpsCounter } from './stats.js';
 // DOM elements
 let video, overlay, ctx;
 
+// Khởi tạo Canvas tạm thời dùng chung để tránh rò rỉ bộ nhớ (Memory Leak)
+// Reusable temporary canvas to prevent memory churn
+let tempCanvas = null;
+let tempCtx = null;
+
 /**
  * Initialize detection module
  * @param {Object} elements - DOM elements
@@ -18,6 +23,11 @@ export function initDetection(elements) {
     video = elements.video;
     overlay = elements.overlay;
     ctx = overlay.getContext('2d');
+    
+    // Khởi tạo tempCanvas một lần duy nhất / Initialize temporary canvas ONCE
+    tempCanvas = document.createElement('canvas');
+    // Sử dụng willReadFrequently để tối ưu hóa việc đọc dữ liệu ảnh ra (toBlob)
+    tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true }); 
 }
 
 /**
@@ -60,10 +70,6 @@ export async function processFrame() {
     const startTime = performance.now();
     
     try {
-        // Capture frame from video
-        const canvas = document.createElement('canvas');
-        const tempCtx = canvas.getContext('2d');
-        
         // Check if video is ready
         if (video.videoWidth === 0 || video.videoHeight === 0) {
             // Video not ready, retry later
@@ -71,16 +77,19 @@ export async function processFrame() {
             return;
         }
         
-        // Set canvas dimensions to match video
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+        // CHỈ cập nhật kích thước nếu video thay đổi kích thước
+        // ONLY update dimensions if the video resolution changes
+        if (tempCanvas.width !== video.videoWidth || tempCanvas.height !== video.videoHeight) {
+            tempCanvas.width = video.videoWidth;
+            tempCanvas.height = video.videoHeight;
+        }
         
-        // Draw current frame to temporary canvas
-        tempCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        // Vẽ frame hiện tại lên tempCanvas / Draw current frame to temporary canvas
+        tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
         
         // Convert canvas to blob
         const blob = await new Promise(resolve => {
-            canvas.toBlob(resolve, 'image/jpeg', 0.8);
+            tempCanvas.toBlob(resolve, 'image/jpeg', 0.8);
         });
         
         // Prepare data to send
@@ -178,19 +187,7 @@ export function drawDetections(personBoxes, faceBoxes) {
                 labelParts.push(`Người ${box.confidence.toFixed(2)}`);
             }
             
-            // Add action if enabled and available
-            if (config.showActions && box.action) {
-                labelParts.push(box.action);
-                
-                // Use action-specific color if available
-                if (config.actionColors[box.action]) {
-                    ctx.fillStyle = config.actionColors[box.action];
-                } else {
-                    ctx.fillStyle = config.actionColor;
-                }
-            } else {
-                ctx.fillStyle = config.personColor;
-            }
+            ctx.fillStyle = config.personColor;
             
             // Only draw label if we have something to show
             if (labelParts.length > 0) {
@@ -228,19 +225,7 @@ export function drawDetections(personBoxes, faceBoxes) {
                 labelParts.push(`${box.confidence.toFixed(2)}`);
             }
             
-            // Add emotion if enabled and available
-            if (config.showEmotions && box.emotion) {
-                labelParts.push(box.emotion);
-                
-                // Use emotion-specific color if available
-                if (config.emotionColors[box.emotion]) {
-                    ctx.fillStyle = config.emotionColors[box.emotion];
-                } else {
-                    ctx.fillStyle = config.emotionColor;
-                }
-            } else {
-                ctx.fillStyle = config.faceColor; // Default color for face box if no emotion or emotion not shown
-            }
+            ctx.fillStyle = config.faceColor;
 
             // Add similar face names if enabled and available
             if (config.showFaceNames) {

@@ -194,3 +194,4 @@ emotion_model_checkpoint.h5
 run_server.py
 structure.txt
 models/saved_face_embedding
+rev/

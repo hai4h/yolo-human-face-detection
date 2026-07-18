@@ -11,11 +11,3 @@ FACE_COLOR = (0, 255, 0)     # Màu xanh lá / Green color
 EMOTION_COLOR = (255, 165, 0)  # Màu cam / Orange color for emotion
 TEXT_SCALE = 1             # Tỷ lệ chữ / Text scale
 TEXT_THICKNESS = 2           # Độ dày chữ / Text thickness
-
-# Danh sách cảm xúc / Emotion labels
-EMOTION_LABELS = ['Giận dữ', 'Ghê tởm', 'Sợ hãi', 'Vui vẻ', 'Buồn bã', 'Ngạc nhiên', 'Bình thường']
-
-# Danh sách hành vi / Action labels
-ACTION_LABELS = ['Gọi điện', 'Vỗ tay', 'Đạp xe', 'Khiêu vũ', 'Uống nước', 
-                'Ăn uống', 'Đánh nhau', 'Ôm', 'Cười', 'Nghe nhạc', 
-                'Chạy', 'Ngồi', 'Ngủ', 'Nhắn tin', 'Dùng laptop']

@@ -38,7 +38,7 @@
 
 3. Cài đặt các thư viện Python:
    ```
-   pip install -r ultralytics fastapi uvicorn opencv-python
+   pip install ultralytics fastapi uvicorn opencv-python pymongo python-multipart faiss-cpu
    ```
 
 4. Chạy file run_server.py để khởi động hệ thống, port của hệ thống được định nghĩa trong run_server.py

@@ -1,7 +1,3 @@
-from os import putenv
-putenv("HSA_OVERRIDE_GFX_VERSION", "10.3.0")
-putenv("ROCM_PATH", "/opt/rocm-6.3.0/")
-
 import cv2
 import os
 from ultralytics import YOLO

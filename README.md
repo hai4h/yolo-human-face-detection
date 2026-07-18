@@ -1,4 +1,4 @@
-# Hệ thống Nhận diện Người & Khuôn Mặt
+# Hệ thống Nhận diện Người & Khuôn Mặt (PROTOTYPE)
 
 ## 1. Tổng quan hệ thống
 
